@@ -1,0 +1,35 @@
+[project]
+name = "15a"
+version = "0.1.0"
+requires-python = ">=3.9"
+dependencies = [
+    "pyyaml>=6.0.3",
+    "trino>=0.337.0",
+    "prometheus-client>=0.25.0",
+    "loguru>=0.7.3",
+    "aiosqlite>=0.22.1",
+    "aiotrino>=0.3.0",
+    "pydantic>=2.13.4",
+    "numpy>=2.0.2",
+    "coverage>=7.10.7",
+    "pytz>=2026.2",
+]
+
+[dependency-groups]
+dev = [
+    "pyright>=1.1.410",
+    "ruff>=0.15.16",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py314"
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+
+[tool.ruff.lint.isort]
+split-on-trailing-comma = false
+
+[tool.ruff.format]
+skip-magic-trailing-comma = true

@@ -1,0 +1,10 @@
+**/__pycache__/
+*.env
+.venv
+web-app/tld-endpoint-mock/RSSAC002-root-data/
+rssac-002-measurements-root-22jun23-en.pdf
+**/RSSAC002-data/
+tests.db
+tests.db-journal
+config.yaml
+.coverage
