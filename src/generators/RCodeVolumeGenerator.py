@@ -72,10 +72,14 @@ class RCodeVolumeGenerator(ReportGenerator):
 
         ns_reports = []
         for server, rcode_dict in rcodes.items():
+            normalized = {
+                (-1 if rcode is None else rcode): count
+                for rcode, count in rcode_dict.items()
+            }
             ns_reports.append(
                 RCodeVolumeReport(
                     **self._generate_ns_metadata(server, start_period),
-                    rcode_volume=dict(sorted(rcode_dict.items(), key=lambda x: x[0])),
+                    rcode_volume=dict(sorted(normalized.items(), key=lambda x: x[0])),
                     is_ns_report=True,
                 )
             )
