@@ -1,4 +1,5 @@
 import os
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -13,6 +14,7 @@ from src.reports.reports import Report
 class ExportClosure:
     report: Report
     base_path: Path
+    overwrite_existing: bool = False
 
 
 class ReportExporter:
@@ -64,12 +66,21 @@ class ReportExporter:
         export_base_path = closure.base_path
 
         path: Path = export_base_path / report.export_loc / report.filename
+        temporary_path = None
 
         try:
             os.makedirs(path.parent, exist_ok=True)
 
-            with open(path, "x") as f:
-                yaml.dump_all([report.to_dict()], f, sort_keys=False)
+            if closure.overwrite_existing:
+                with tempfile.NamedTemporaryFile(
+                    mode="w", dir=path.parent, prefix=f".{path.name}.", suffix=".tmp", delete=False
+                ) as f:
+                    temporary_path = Path(f.name)
+                    yaml.dump_all([report.to_dict()], f, sort_keys=False)
+                os.replace(temporary_path, path)
+            else:
+                with open(path, "x") as f:
+                    yaml.dump_all([report.to_dict()], f, sort_keys=False)
 
             logger.info(f"Successfully exported {report.filename} to {path}.")
 
@@ -84,3 +95,6 @@ class ReportExporter:
         except yaml.YAMLError as e:
             logger.error(f"Could not serialize report to {str(path)}: {str(e)}")
             raise PermanentError(str(e))
+        finally:
+            if temporary_path is not None:
+                temporary_path.unlink(missing_ok=True)
