@@ -1,6 +1,22 @@
+> **This is a fork** of the [RSSAC002-TLD Metrics Generator](https://codeberg.org/RSSAC002-TLD/RSSAC002-TLD-Metrics-Generator), with some changes. The changes are listed in [Changes compared to the original](#changes-compared-to-the-original).
+>
+> **Credit:** the tool was built by computer science bachelor students at [TU Delft](https://tudelft.nl) as part of their [Software Project course](https://sp.pages.ewi.tudelft.nl/site/), in a project for SIDN Labs. Many thanks to them. All credit for the original design and implementation goes to them.
+
 This repository contains a tool that generates TLD-level DNS traffic metrics in a structure based on [version 5 of the existing RSSAC002 standard](https://itp.cdn.icann.org/en/files/root-server-system-advisory-committee-rssac-publications/rssac-002-measurements-root-22jun23-en.pdf). This metrics generator serves operators who collect data with [ENTRADA2](https://github.com/SIDN/entrada2) and functions as a first step towards DNS metric standardization at the TLD level.
 
-### Features:
+## Changes compared to the original
+
+- **TLD selection:** queries are restricted to one TLD, set with the new `tld_evaluated` option (required).
+- **Correct IPv6 prefix counting:** the original matched prefixes by substring, which gives wrong counts. Prefixes are now compared properly.
+- **OAuth2 authentication for Trino:** new `auth` (`oauth2` or `none`) and `http_scheme` options. `schema` and `user` are now optional, and `engine` defaults to `trino`. The config is validated: `auth: none` requires a `user`, and `auth: oauth2` requires `https`.
+- **One shared query executor:** a single executor is used by all generators, so OAuth2 only authenticates once per run instead of four times.
+- **Optional overwrite of existing reports:** reports can be overwritten, written atomically through a temporary file, so an interrupted run never leaves a partial report. By default existing reports are never overwritten.
+- **NULL RCODE fix:** the `rcode-volume` report no longer crashes when a query has no RCODE. These are reported under RCODE `-1`, which means the DNS query had no response, or ENTRADA could not match it to a response. Report validation now accepts `-1` (`RCODE_MIN`).
+- **Configurable query catalog:** the new `query_catalog` option selects the query set (default: `entrada`).
+
+**Breaking changes:** `tld_evaluated` is required, so config files for the original version need this option added.
+
+## Features
 - Generation of TLD-level adaptations of the following RSSAC002v5-defined metrics:
 	- `rcode-volume`
 	- `traffic-sizes`
@@ -9,12 +25,16 @@ This repository contains a tool that generates TLD-level DNS traffic metrics in 
 - Support for flexible scheduling as a flexibility add-on, and is useful for non-additive metrics such as `unique-sources`. However, for standardization purposes, publishing metrics over the RSSAC002v5-defined, system default 00:00-23:59 UTC window is required.
 - Report exporting to a user-specified directory. Further exporting is done according to the RSSAC002v5-defined directory structure.
 - Support for per-nameserver metrics generation.
-  
-### Limitations:
-This project was part of the 10-week, 2nd-year BSc course (CSE2000) at the Delft University of Technology. To fit into the time frame of the course, the tool has been limited to the generation of the previously mentioned subset of RSSAC002-defined metrics. The `zone-size` and `load-time` metrics are omitted to keep the scope fixed to metrics that can be derived from ENTRADA2.
-### Configuration
-The metrics generator can be configured through a .`yaml` file:
-#### What is configurable?
+- Metrics restricted to a single TLD.
+- Trino authentication with OAuth2.
+
+## Limitations
+The original project was part of the 10-week, 2nd-year BSc course (CSE2000) at the Delft University of Technology. To fit into the time frame of the course, the tool has been limited to the generation of the previously mentioned subset of RSSAC002-defined metrics. The `zone-size` and `load-time` metrics are omitted to keep the scope fixed to metrics that can be derived from ENTRADA2.
+
+## Configuration
+The metrics generator can be configured through a `.yaml` file.
+
+### What is configurable?
 - Database time zone (`db_timezone`): specifies the timezone the database operates in. Important for range queries over time.
 - Export root (`export_root`): directory to which generated reports should be exported.
 
@@ -29,12 +49,15 @@ The metrics generator can be configured through a .`yaml` file:
 		DEFAULT: Startup time
 
 - Query executor information (`query_connection`):
-	- `engine`: Query engine name. Currently only supports Trino.
-	- `host`: Hostname or IP address of the query engine/database server the tool connects to in order to read ENTRADA2 query log data. -
+	- `engine`: Query engine name. Currently only supports Trino. DEFAULT: `trino`.
+	- `host`: Hostname or IP address of the query engine/database server the tool connects to in order to read ENTRADA2 query log data.
 	- `port`: Port number on which the query engine is listening for connections.
-	- `user`: Username used to authenticate for the query engine.
 	- `catalog`: The catalog under which the ENTRADA2 data is registered. Set this to match your ENTRADA2 deployment's catalog name.
-	- `schema`: The database schema.
+	- `schema`: The database schema. Optional.
+	- `http_scheme`: `http` or `https`. Optional. Must be `https` (or omitted) when using OAuth2.
+	- `auth`: Authentication mode: `oauth2` or `none`. DEFAULT: `none`. With `oauth2` the tool starts an OAuth2 login flow once per run.
+	- `user`: Username used to authenticate for the query engine. Required when `auth` is `none` (or omitted), not used with `oauth2`.
+	- `query_catalog`: Which set of queries to use. DEFAULT: `entrada`.
 
 - `service_name`: RSSAC002 parameter for service-name.
 
@@ -42,35 +65,52 @@ The metrics generator can be configured through a .`yaml` file:
 
 - `per_ns_mode`: A Boolean value for enabling per-nameserver generation.
 
-  
-Below is an example of a valid configuration file:
+- `tld_evaluated`: The TLD the metrics are calculated for (for example `nl`). Required.
+
+Below is an example of a valid configuration file, using OAuth2:
 
 ```YAML
 db_timezone: UTC
-export_root: ./RSSAC002-data
+export_root: ./NL-RSSAC002-data
 schedule:
-  type: fixed_window
-  start_time: 2026-05-25T09:38:59+00:00
-  window_start: 00:00
-  window_end: 00:00
-  generation_time: 03:00
+  type: fixed_window
+  start_time: 2026-08-30T00:00:00+00:00
+  window_start: 00:00
+  window_end: 00:00
+  generation_time: 09:00
 
 query_connection:
-  engine: trino
-  host: localhost
-  port: 8085
-  user: admin
-  catalog: iceberg
-  schema: entrada
+  host: trino.example.org  # your Trino host
+  port: 443                # your Trino port
+  catalog: iceberg
+  schema: entrada          # optional
+  http_scheme: https
+  auth: oauth2             # "oauth2" or "none" (or omit for username auth)
+  user: null               # used only when auth is none/omitted
+  query_catalog: entrada
 
-service_name: TLD
-short_service: .tld
+service_name: nl_servers
+short_service: nl
 per_ns_mode: true
-
+tld_evaluated: nl
 ```
 
-  
-### Running instructions
+For a setup without OAuth2, use username authentication instead:
+
+```YAML
+query_connection:
+  host: localhost
+  port: 8085
+  catalog: iceberg
+  schema: entrada
+  auth: none
+  user: admin
+```
+
+### RCODE `-1`
+In the `rcode-volume` report, an RCODE of `-1` means the DNS query had no response, or ENTRADA could not match it to a response. This is not an RCODE defined by the RSSAC002 standard.
+
+## Running instructions
 
 To run the tool, ensure `uv` is installed correctly. Then, from the `core-tool` directory, run:
 
@@ -86,11 +126,13 @@ If not specified, config location defaults to `/core-tool/rssac002config.yaml`.
 
 ## Project Origin
 
-This project originated as a TU Delft CSE2000 Software Project for SIDN Labs. The broader project investigated whether RSSAC002-style reporting can be adapted for TLD-level DNS traffic metrics. This public repository contains only the Metrics Generator component.
+The original project was a TU Delft CSE2000 Software Project, carried out by bachelor students for SIDN Labs. The broader project investigated whether RSSAC002-style reporting can be adapted for TLD-level DNS traffic metrics. The upstream repository contains only the Metrics Generator component, and this fork is derived from it.
+
+Original repository: https://codeberg.org/RSSAC002-TLD/RSSAC002-TLD-Metrics-Generator
 
 ## Related Projects
 
- Within the CSE2000 course, we have also developed an [RSSAC002 analysis dashboard](https://codeberg.org/RSSAC002-TLD/RSSAC002-Analysis-Dashboard). 
+ Within the CSE2000 course, the original authors also developed an [RSSAC002 analysis dashboard](https://codeberg.org/RSSAC002-TLD/RSSAC002-Analysis-Dashboard).
 
 ## License
-This project is licensed under the GNU General Public License v3. See [`LICENSE.md`]().
+This project is licensed under the GNU General Public License v3, the same license as the original. See [`LICENSE.md`](LICENSE.md). The original copyright notices are kept, and changes in this fork are made available under the same license.
