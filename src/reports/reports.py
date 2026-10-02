@@ -204,7 +204,7 @@ class TrafficSizesReport(Report):
         return {key.replace("-", "_"): value for key, value in res.items()}
 
 
-RCODE_MIN = 0
+RCODE_MIN = -1
 RCODE_MAX = 4095
 
 
