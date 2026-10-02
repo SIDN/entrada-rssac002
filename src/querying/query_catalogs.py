@@ -50,6 +50,7 @@ class EntradaQueryCatalog(QueryCatalog):
             SELECT dns_rcode, COUNT(*) FROM dns
             WHERE time >= ?
             AND time < ?
+            AND dns_tld = ?
             GROUP BY dns_rcode
         """
 
@@ -59,6 +60,7 @@ class EntradaQueryCatalog(QueryCatalog):
             SELECT server, dns_rcode, COUNT(*) FROM dns
             WHERE time >= ?
             AND time < ?
+            AND dns_tld = ?
             GROUP BY dns_rcode, server
         """
 
@@ -68,12 +70,16 @@ class EntradaQueryCatalog(QueryCatalog):
             SELECT
                 COUNT(DISTINCT CASE WHEN ip_version = 4 THEN ip_src END) AS num_sources_ipv4,
                 COUNT(DISTINCT CASE WHEN ip_version = 6 THEN ip_src END) AS num_sources_ipv6,
-                COUNT(
-                    DISTINCT CASE WHEN ip_version = 6 THEN SUBSTRING(ip_src, 1, 19) END
-                ) AS num_sources_ipv6_aggregate
+                COUNT(DISTINCT CASE WHEN ip_version = 6 THEN concat(
+                    split_part(ip_src, ':', 1), ':',
+                    split_part(ip_src, ':', 2), ':',
+                    split_part(ip_src, ':', 3), ':',
+                    split_part(ip_src, ':', 4)
+                ) END) AS num_sources_ipv6_aggregate
             FROM dns
             WHERE time >= ?
             AND time < ?
+            AND dns_tld = ?
         """
 
     @staticmethod
@@ -83,12 +89,16 @@ class EntradaQueryCatalog(QueryCatalog):
                 server,
                 COUNT(DISTINCT CASE WHEN ip_version = 4 THEN ip_src END) AS num_sources_ipv4,
                 COUNT(DISTINCT CASE WHEN ip_version = 6 THEN ip_src END) AS num_sources_ipv6,
-                COUNT(
-                    DISTINCT CASE WHEN ip_version = 6 THEN SUBSTRING(ip_src, 1, 19) END
-                ) AS num_sources_ipv6_aggregate
+                COUNT(DISTINCT CASE WHEN ip_version = 6 THEN concat(
+                    split_part(ip_src, ':', 1), ':',
+                    split_part(ip_src, ':', 2), ':',
+                    split_part(ip_src, ':', 3), ':',
+                    split_part(ip_src, ':', 4)
+                ) END) AS num_sources_ipv6_aggregate
             FROM dns
             WHERE time >= ?
             AND time < ?
+            AND dns_tld = ?
             GROUP BY server
         """
 
@@ -147,6 +157,7 @@ class EntradaQueryCatalog(QueryCatalog):
             FROM dns
             WHERE time >= ?
             AND time < ?
+            AND dns_tld = ?
         """
 
     @staticmethod
@@ -204,6 +215,7 @@ class EntradaQueryCatalog(QueryCatalog):
             FROM dns
             WHERE time >= ?
             AND time < ?
+            AND dns_tld = ?
             GROUP BY server
         """
 
@@ -223,6 +235,7 @@ class EntradaQueryCatalog(QueryCatalog):
                 FROM dns
                 WHERE dns_req_len IS NOT NULL
                 AND time >= ? AND time < ? 
+                AND dns_tld = ?
             ) t
             GROUP BY prot, 
                 CASE
@@ -248,6 +261,7 @@ class EntradaQueryCatalog(QueryCatalog):
                 FROM dns
                 WHERE dns_req_len IS NOT NULL
                 AND time >= ? AND time < ?
+                AND dns_tld = ?
             ) t
             GROUP BY server, prot, 
                 CASE
@@ -273,6 +287,7 @@ class EntradaQueryCatalog(QueryCatalog):
                 FROM dns
                 WHERE dns_res_len IS NOT NULL
                 AND time >= ? AND time < ?
+                AND dns_tld = ?
             ) t
             GROUP BY prot, 
                 CASE
@@ -298,6 +313,7 @@ class EntradaQueryCatalog(QueryCatalog):
                 FROM dns
                 WHERE dns_res_len IS NOT NULL
                 AND time >= ? AND time < ?
+                AND dns_tld = ?
             ) t
             GROUP BY server, prot, 
                 CASE
