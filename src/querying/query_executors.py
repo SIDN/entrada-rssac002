@@ -6,6 +6,7 @@ from typing import Any
 import aiosqlite
 import requests
 import trino
+from trino.auth import OAuth2Authentication
 from trino.dbapi import Connection as TrinoConnection
 from trino.dbapi import Cursor as TrinoCursor
 from trino.dbapi import connect as trino_connect
@@ -18,38 +19,39 @@ DATE_FORMAT = "%Y%m%d%H%M%S"
 
 class QueryExecutor(ABC):
     @abstractmethod
-    def __init__(self, query_catalog: QueryCatalog):
+    def __init__(self, query_catalog: QueryCatalog, tld: str):
         self.query_catalog = query_catalog
+        self.tld = tld
 
     async def query_rcode_volume_global(self, params: tuple[Any, ...]):
-        return await self.execute(self.query_catalog.get_rcode_volume_global_query(), params)
+        return await self.execute(self.query_catalog.get_rcode_volume_global_query(), (*params, self.tld))
 
     async def query_rcode_volume_per_ns(self, params: tuple[Any, ...]):
-        return await self.execute(self.query_catalog.get_rcode_volume_per_ns_query(), params)
+        return await self.execute(self.query_catalog.get_rcode_volume_per_ns_query(), (*params, self.tld))
 
     async def query_unique_sources_global(self, params: tuple[Any, ...]):
-        return await self.execute(self.query_catalog.get_unique_sources_global_query(), params)
+        return await self.execute(self.query_catalog.get_unique_sources_global_query(), (*params, self.tld))
 
     async def query_unique_sources_per_ns(self, params: tuple[Any, ...]):
-        return await self.execute(self.query_catalog.get_unique_sources_per_ns_query(), params)
+        return await self.execute(self.query_catalog.get_unique_sources_per_ns_query(), (*params, self.tld))
 
     async def query_traffic_volume_global(self, params: tuple[Any, ...]):
-        return await self.execute(self.query_catalog.get_traffic_volume_global_query(), params)
+        return await self.execute(self.query_catalog.get_traffic_volume_global_query(), (*params, self.tld))
 
     async def query_traffic_volume_per_ns(self, params: tuple[Any, ...]):
-        return await self.execute(self.query_catalog.get_traffic_volume_per_ns_query(), params)
+        return await self.execute(self.query_catalog.get_traffic_volume_per_ns_query(), (*params, self.tld))
 
     async def query_traffic_sizes_global_request(self, params: tuple[Any, ...]):
-        return await self.execute(self.query_catalog.get_traffic_sizes_global_request_query(), params)
+        return await self.execute(self.query_catalog.get_traffic_sizes_global_request_query(), (*params, self.tld))
 
     async def query_traffic_sizes_per_ns_request(self, params: tuple[Any, ...]):
-        return await self.execute(self.query_catalog.get_traffic_sizes_per_ns_request_query(), params)
+        return await self.execute(self.query_catalog.get_traffic_sizes_per_ns_request_query(), (*params, self.tld))
 
     async def query_traffic_sizes_global_response(self, params: tuple[Any, ...]):
-        return await self.execute(self.query_catalog.get_traffic_sizes_global_response_query(), params)
+        return await self.execute(self.query_catalog.get_traffic_sizes_global_response_query(), (*params, self.tld))
 
     async def query_traffic_sizes_per_ns_response(self, params: tuple[Any, ...]):
-        return await self.execute(self.query_catalog.get_traffic_sizes_per_ns_response_query(), params)
+        return await self.execute(self.query_catalog.get_traffic_sizes_per_ns_response_query(), (*params, self.tld))
 
     @abstractmethod
     async def execute(self, query: str, params: tuple[Any]):
@@ -59,11 +61,11 @@ class QueryExecutor(ABC):
 class SQLiteQueryExecutor(QueryExecutor):
     query_catalogs = {"entrada": EntradaQueryCatalog}
 
-    def __init__(self, query_catalog_str="entrada"):
+    def __init__(self, tld: str, query_catalog_str="entrada"):
         query_catalog = SQLiteQueryExecutor.query_catalogs.get(query_catalog_str)
-        super().__init__(query_catalog)
+        super().__init__(query_catalog, tld)
         self.conn = None
-
+        
     async def close(self):
         if self.conn:
             await self.conn.close()
@@ -99,21 +101,79 @@ class SQLiteQueryExecutor(QueryExecutor):
 class TrinoQueryExecutor(QueryExecutor):
     query_catalogs = {"entrada": EntradaQueryCatalog}
 
-    def __init__(self, host, port, user, catalog, schema, query_catalog_str="entrada"):
+    def __init__(
+        self,
+        host,
+        port,
+        catalog,
+        tld,
+        schema=None,
+        user=None,
+        http_scheme=None,
+        auth=None,
+        query_catalog_str="entrada",
+    ):
         self.host = host
         self.port = port
-        self.user = user
         self.catalog = catalog
         self.schema = schema
+        self.user = user
+        self.http_scheme = http_scheme
+        self.auth = auth
         query_catalog = TrinoQueryExecutor.query_catalogs.get(query_catalog_str)
-        super().__init__(query_catalog)
+        super().__init__(query_catalog, tld)
+
+    @classmethod
+    def from_config(cls, config: dict[str, Any], tld: str) -> "TrinoQueryExecutor":
+        """Build an executor from the `query_connection` block of the YAML config."""
+        auth_mode = (config.get("auth") or "none").lower()
+
+        if auth_mode == "oauth2":
+            auth = OAuth2Authentication()
+            user = None
+        elif auth_mode == "none":
+            auth = None
+            user = config.get("user")
+        else:
+            raise PermanentError(f"Unsupported trino auth mode: {auth_mode!r}")
+
+        return cls(
+            host=config["host"],
+            port=config["port"],
+            catalog=config["catalog"],
+            tld=tld,
+            schema=config.get("schema"),
+            user=user,
+            http_scheme=config.get("http_scheme"),
+            auth=auth,
+            query_catalog_str=config.get("query_catalog", "entrada"),
+        )
+
+    def _connect_kwargs(self) -> dict[str, Any]:
+        """Assemble kwargs for trino_connect, omitting any that are unset.
+
+        Passing user=None / auth=None explicitly would override trino's own
+        defaults, so unset values are dropped rather than passed through.
+        """
+        kwargs: dict[str, Any] = {
+            "host": self.host,
+            "port": self.port,
+            "catalog": self.catalog,
+        }
+        if self.schema is not None:
+            kwargs["schema"] = self.schema
+        if self.user is not None:
+            kwargs["user"] = self.user
+        if self.http_scheme is not None:
+            kwargs["http_scheme"] = self.http_scheme
+        if self.auth is not None:
+            kwargs["auth"] = self.auth
+        return kwargs
 
     async def execute(self, query: str, params: tuple[Any, ...]) -> list[dict[str, int | str]]:
         conn = None
         try:
-            conn: TrinoConnection = trino_connect(
-                host=self.host, port=self.port, user=self.user, catalog=self.catalog, schema=self.schema
-            )
+            conn: TrinoConnection = trino_connect(**self._connect_kwargs())
             cur: TrinoCursor = conn.cursor()
             await asyncio.to_thread(cur.execute, query, params)
 
