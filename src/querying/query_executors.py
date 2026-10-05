@@ -18,6 +18,16 @@ DATE_FORMAT = "%Y%m%d%H%M%S"
 
 
 class QueryExecutor(ABC):
+    @staticmethod
+    def _split_part(value: str | None, delimiter: str, index: int) -> str:
+        if value is None:
+            return ""
+        parts = value.split(delimiter)
+        try:
+            return parts[index - 1]
+        except IndexError:
+            return ""
+
     @abstractmethod
     def __init__(self, query_catalog: QueryCatalog, tld: str):
         self.query_catalog = query_catalog
@@ -78,6 +88,7 @@ class SQLiteQueryExecutor(QueryExecutor):
         """
         if self.conn is None:
             self.conn = await aiosqlite.connect(":memory:")
+            await self.conn.create_function("split_part", 3, self._split_part)
 
         if params is not None:
             list_of_params = list(params)
