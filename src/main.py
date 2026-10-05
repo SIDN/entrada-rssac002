@@ -51,13 +51,13 @@ class Orchestrator:
             raise
 
 
-def parse_args() -> tuple[Path, bool]:
+def parse_args(argv: list[str] | None = None) -> tuple[Path, bool]:
     """Parses command line arguments"""
     parser = argparse.ArgumentParser()
     parser.add_argument("-d", "--debug", action="store_true")
     parser.add_argument("-c", "--config", type=str)
     parser.add_argument("--once", action="store_true", help="generate one report batch and exit")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     if args.debug:
         logger.remove()
@@ -76,11 +76,15 @@ def parse_args() -> tuple[Path, bool]:
 def main():
     """Default entrypoint: run the one-shot query suite unless scheduler mode is explicitly requested."""
     entry_parser = argparse.ArgumentParser(add_help=False)
-    entry_parser.add_argument("--scheduler", action="store_true", help="Run the long-lived report scheduler instead of the query runner.")
-    entry_args, _ = entry_parser.parse_known_args()
+    entry_parser.add_argument(
+        "--scheduler",
+        action="store_true",
+        help="Run the long-lived report scheduler instead of the query runner.",
+    )
+    entry_args, runner_args = entry_parser.parse_known_args()
 
     if entry_args.scheduler:
-        config_path, run_once = parse_args()
+        config_path, run_once = parse_args(runner_args)
         try:
             orchestrator = Orchestrator(*parse_config(config_path))
             if run_once:

@@ -2,20 +2,31 @@
 >
 > **Credit:** the tool was built by computer science bachelor students at [TU Delft](https://tudelft.nl) as part of their [Software Project course](https://sp.pages.ewi.tudelft.nl/site/), in a project for SIDN Labs. Many thanks to them. All credit for the original design and implementation goes to them.
 
+## How to run it
+
+1. Install the project dependencies with `uv sync`.
+2. Create `rssac002config.yaml` using the [configuration example](#configuration) below. Set your Trino connection details and the required `tld_evaluated` value.
+3. Generate reports for a date range:
+
+	```bash
+	uv run python -m src.main --config ./rssac002config.yaml --start 2026-05-21 --end 2026-05-21
+	```
+
+For a local smoke test without connecting to Trino, run:
+
+```bash
+uv run python -m src.main --sqlite --start 2026-05-21 --end 2026-05-21 --tld nl
+```
+
+To run the long-lived scheduler instead of a single date range, use:
+
+```bash
+uv run python -m src.main --scheduler --config ./rssac002config.yaml
+```
+
+The config path defaults to `rssac002config.yaml` in the current directory. Add `--debug` for more detailed logging.
+
 This repository contains a tool that generates TLD-level DNS traffic metrics in a structure based on [version 5 of the existing RSSAC002 standard](https://itp.cdn.icann.org/en/files/root-server-system-advisory-committee-rssac-publications/rssac-002-measurements-root-22jun23-en.pdf). This metrics generator serves operators who collect data with [ENTRADA2](https://github.com/SIDN/entrada2) and functions as a first step towards DNS metric standardization at the TLD level.
-
-## Changes compared to the original
-
-- **TLD selection:** queries are restricted to one TLD, set with the new `tld_evaluated` option (required).
-- **Correct IPv6 prefix counting:** the original matched prefixes by substring, which gives wrong counts. Prefixes are now compared properly.
-- **OAuth2 authentication for Trino:** new `auth` (`oauth2` or `none`) and `http_scheme` options. `schema` and `user` are now optional, and `engine` defaults to `trino`. The config is validated: `auth: none` requires a `user`, and `auth: oauth2` requires `https`.
-- **One shared query executor:** a single executor is used by all generators, so OAuth2 only authenticates once per run instead of four times.
-- **Optional overwrite of existing reports:** reports can be overwritten, written atomically through a temporary file, so an interrupted run never leaves a partial report. By default existing reports are never overwritten.
-- **NULL RCODE fix:** the `rcode-volume` report no longer crashes when a query has no RCODE. These are reported under RCODE `-1`, which means the DNS query had no response, or ENTRADA could not match it to a response. Report validation now accepts `-1` (`RCODE_MIN`).
-- **Configurable query catalog:** the new `query_catalog` option selects the query set (default: `entrada`).
-- **Default runner is one-shot:** the project entrypoint now executes the query runner by default instead of entering the long-running scheduler loop. The scheduler remains available as an explicit opt-in mode with `--scheduler`.
-
-**Breaking changes:** `tld_evaluated` is required, so config files for the original version need this option added.
 
 ## Features
 - Generation of TLD-level adaptations of the following RSSAC002v5-defined metrics:
@@ -111,32 +122,6 @@ query_connection:
 ### RCODE `-1`
 In the `rcode-volume` report, an RCODE of `-1` means the DNS query had no response, or ENTRADA could not match it to a response. This is not an RCODE defined by the RSSAC002 standard.
 
-## Running instructions
-
-The default project entrypoint is the one-shot query runner. It executes the configured query catalog for the selected time range and exits instead of entering the long-running scheduler loop.
-
-To run it with a config file and a date range:
-
-```bash
-uv run python -m src.main --config ./path/to/config.yaml --start 2026-05-21 --end 2026-05-21
-```
-
-If you want to force the older long-running scheduler behavior, enable it explicitly:
-
-```bash
-uv run python -m src.main --scheduler --config ./path/to/config.yaml
-```
-
-For local smoke testing without a Trino connection, the in-memory SQLite runner is also available:
-
-```bash
-uv run python -m src.main --sqlite --start 2026-05-21 --end 2026-05-21 --tld nl
-```
-
-There also exists a `-d` or `--debug` option, which can be used to obtain more detailed logging for debugging purposes.
-
-If `--config` is not specified, the config location defaults to `rssac002config.yaml` in the current directory.
-
 ## Project Origin
 
 The original project was a TU Delft CSE2000 Software Project, carried out by bachelor students for SIDN Labs. The broader project investigated whether RSSAC002-style reporting can be adapted for TLD-level DNS traffic metrics. The upstream repository contains only the Metrics Generator component, and this fork is derived from it.
@@ -146,6 +131,19 @@ Original repository: https://codeberg.org/RSSAC002-TLD/RSSAC002-TLD-Metrics-Gene
 ## Related Projects
 
  Within the CSE2000 course, the original authors also developed an [RSSAC002 analysis dashboard](https://codeberg.org/RSSAC002-TLD/RSSAC002-Analysis-Dashboard).
+
+## Changes compared to the original
+
+- **TLD selection:** queries are restricted to one TLD, set with the new `tld_evaluated` option (required).
+- **Correct IPv6 prefix counting:** the original matched prefixes by substring, which gives wrong counts. Prefixes are now compared properly.
+- **OAuth2 authentication for Trino:** new `auth` (`oauth2` or `none`) and `http_scheme` options. `schema` and `user` are now optional, and `engine` defaults to `trino`. The config is validated: `auth: none` requires a `user`, and `auth: oauth2` requires `https`.
+- **One shared query executor:** a single executor is used by all generators, so OAuth2 only authenticates once per run instead of four times.
+- **Optional overwrite of existing reports:** reports can be overwritten, written atomically through a temporary file, so an interrupted run never leaves a partial report. By default existing reports are never overwritten.
+- **NULL RCODE fix:** the `rcode-volume` report no longer crashes when a query has no RCODE. These are reported under RCODE `-1`, which means the DNS query had no response, or ENTRADA could not match it to a response. Report validation now accepts `-1` (`RCODE_MIN`).
+- **Configurable query catalog:** the new `query_catalog` option selects the query set (default: `entrada`).
+- **Default runner is one-shot:** the project entrypoint now executes the query runner by default instead of entering the long-running scheduler loop. The scheduler remains available as an explicit opt-in mode with `--scheduler`.
+
+**Breaking changes:** `tld_evaluated` is required, so config files for the original version need this option added.
 
 ## License
 This project is licensed under the GNU General Public License v3, the same license as the original. See [`LICENSE.md`](LICENSE.md). The original copyright notices are kept, and changes in this fork are made available under the same license.

@@ -1,12 +1,13 @@
 import asyncio
 import datetime
 import unittest
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from loguru import logger
 
 from src.customexceptions import PermanentError
-from src.main import Orchestrator
+from src.main import Orchestrator, main
 from src.run_all_queries import run_all_queries
 from src.querying.query_executors import SQLiteQueryExecutor
 from tests.database_setup import fill_in_table, setup_table
@@ -36,6 +37,18 @@ class MainTests(unittest.TestCase):
             asyncio.run(orchestrator.start_once())
 
         scheduler.start.assert_awaited_once_with(per_ns=True)
+
+    def test_scheduler_flag_is_not_passed_to_scheduler_argument_parser(self):
+        scheduler = MagicMock()
+        with (
+            patch("sys.argv", ["main.py", "--scheduler", "--config", "config.yaml", "--once"]),
+            patch("src.main.parse_config", return_value=(Path("config.yaml"), True, scheduler)),
+            patch("src.main.Orchestrator"),
+            patch("src.main.asyncio.run") as run,
+        ):
+            main()
+
+        run.assert_called_once()
 
     def test_run_all_queries_executes_all_query_methods(self):
         async def run_test() -> None:
