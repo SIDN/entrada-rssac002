@@ -13,6 +13,7 @@ This repository contains a tool that generates TLD-level DNS traffic metrics in 
 - **Optional overwrite of existing reports:** reports can be overwritten, written atomically through a temporary file, so an interrupted run never leaves a partial report. By default existing reports are never overwritten.
 - **NULL RCODE fix:** the `rcode-volume` report no longer crashes when a query has no RCODE. These are reported under RCODE `-1`, which means the DNS query had no response, or ENTRADA could not match it to a response. Report validation now accepts `-1` (`RCODE_MIN`).
 - **Configurable query catalog:** the new `query_catalog` option selects the query set (default: `entrada`).
+- **Default runner is one-shot:** the project entrypoint now executes the query runner by default instead of entering the long-running scheduler loop. The scheduler remains available as an explicit opt-in mode with `--scheduler`.
 
 **Breaking changes:** `tld_evaluated` is required, so config files for the original version need this option added.
 
@@ -112,17 +113,29 @@ In the `rcode-volume` report, an RCODE of `-1` means the DNS query had no respon
 
 ## Running instructions
 
-To run the tool, ensure `uv` is installed correctly. Then, from the `core-tool` directory, run:
+The default project entrypoint is the one-shot query runner. It executes the configured query catalog for the selected time range and exits instead of entering the long-running scheduler loop.
 
+To run it with a config file and a date range:
+
+```bash
+uv run python -m src.main --config ./path/to/config.yaml --start 2026-05-21 --end 2026-05-21
 ```
 
-uv run python -m src.main --config [CONFIG_LOCATION]
+If you want to force the older long-running scheduler behavior, enable it explicitly:
 
+```bash
+uv run python -m src.main --scheduler --config ./path/to/config.yaml
+```
+
+For local smoke testing without a Trino connection, the in-memory SQLite runner is also available:
+
+```bash
+uv run python -m src.main --sqlite --start 2026-05-21 --end 2026-05-21 --tld nl
 ```
 
 There also exists a `-d` or `--debug` option, which can be used to obtain more detailed logging for debugging purposes.
 
-If not specified, config location defaults to `/core-tool/rssac002config.yaml`.
+If `--config` is not specified, the config location defaults to `rssac002config.yaml` in the current directory.
 
 ## Project Origin
 

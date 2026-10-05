@@ -61,7 +61,7 @@ class QueryExecutor(ABC):
 class SQLiteQueryExecutor(QueryExecutor):
     query_catalogs = {"entrada": EntradaQueryCatalog}
 
-    def __init__(self, tld: str, query_catalog_str="entrada"):
+    def __init__(self, tld: str = "example", query_catalog_str="entrada"):
         query_catalog = SQLiteQueryExecutor.query_catalogs.get(query_catalog_str)
         super().__init__(query_catalog, tld)
         self.conn = None
