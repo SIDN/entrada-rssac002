@@ -23,7 +23,7 @@ class OrchestratorDatabaseTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         """Populate database with test data. Construct schedule and orchestrator."""
         logger.remove()
-        self.query_executor = SQLiteQueryExecutor()
+        self.query_executor = SQLiteQueryExecutor(tld="nl")
         gen = SyntheticDataGenerator(self.query_executor)
 
         # populate database for 3 days
