@@ -221,6 +221,25 @@ class TestFixedWindowReportSchedule(IsolatedAsyncioTestCase):
         with self.assertRaises(RuntimeError):
             await scheduler.start(True)
 
+    @patch("asyncio.sleep", new_callable=AsyncMock)
+    async def test_start_without_per_ns_returns_results(self, _mock_sleep):
+        """With per_ns disabled, each generator's single global report must be returned."""
+        schedule = self._make_schedule_in_past()
+        subscribers = self._make_subscribers()
+        generators = self._generators()
+
+        for generator in generators:
+            subscribers[generator].generate_report = AsyncMock(return_value=Result(generator))
+
+        scheduler = ReportScheduler(schedule, subscribers.values())
+
+        result = await scheduler.start(False)
+
+        self.assertListEqual([x.filename for x in result], generators)
+        for generator in generators:
+            subscribers[generator].generate_report.assert_awaited_once()
+            subscribers[generator].generate_reports.assert_not_awaited()
+
 
 class Result:
     def __init__(self, filename):

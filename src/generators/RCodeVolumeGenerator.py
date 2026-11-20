@@ -48,7 +48,8 @@ class RCodeVolumeGenerator(ReportGenerator):
         rcodes = {}
         for row in rows:
             rcode, volume = row.values()
-            rcodes[rcode] = volume
+            # A NULL rcode (no matched response) is reported as -1, as in generate_per_ns.
+            rcodes[-1 if rcode is None else rcode] = volume
 
         return RCodeVolumeReport(**self.generate_metadata(start_period), rcode_volume=rcodes)
 
