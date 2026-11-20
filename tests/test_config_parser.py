@@ -42,6 +42,7 @@ class ConfigParserTest(unittest.TestCase):
         service_name: SIDN
         short_service: .nl
         per_ns_mode: true
+        tld_evaluated: nl
         """)
 
         
@@ -90,6 +91,7 @@ class ConfigParserTest(unittest.TestCase):
         service_name: SIDN
         short_service: .nl
         per_ns_mode: true
+        tld_evaluated: nl
         """)
     
         path, per_ns_mode, scheduler = parse_config(TEST_CONFIG_PATH)
@@ -139,6 +141,7 @@ class ConfigParserTest(unittest.TestCase):
         service_name: SIDN
         short_service: .nl
         per_ns_mode: true
+        tld_evaluated: nl
         """)
     
         path, per_ns_mode, scheduler = parse_config(TEST_CONFIG_PATH)
@@ -187,10 +190,13 @@ class ConfigParserTest(unittest.TestCase):
         service_name: SIDN
         short_service: .nl
         per_ns_mode: true
+        tld_evaluated: nl
         """)
         
         with patch('src.scheduling.schedule.datetime.datetime') as mock_dt:
-            mock_dt.now.return_value = datetime(year=2026, month=5, day=25, hour=9, minute=38, second=59)
+            mock_dt.now.return_value = datetime(
+                year=2026, month=5, day=25, hour=9, minute=38, second=59, tzinfo=timezone.utc
+            )
             path, per_ns_mode, scheduler = parse_config(TEST_CONFIG_PATH)
 
 
@@ -236,6 +242,7 @@ class ConfigParserTest(unittest.TestCase):
         service_name: SIDN
         short_service: .nl
         per_ns_mode: true
+        tld_evaluated: nl
         """)
 
         with self.assertRaises(ValueError):
