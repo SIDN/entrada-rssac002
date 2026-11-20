@@ -93,7 +93,7 @@ class ReportScheduler:
                 if w.per_ns:
                     result = await generator.generate_reports(db_start, db_end)
                 else:
-                    result = await generator.generate_report(db_start, db_end)
+                    result = [await generator.generate_report(db_start, db_end)]
 
             except TransientError:
                 i += 1
